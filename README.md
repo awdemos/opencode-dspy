@@ -6,8 +6,50 @@ A comprehensive system for capturing OpenCode coding sessions and training DSPy 
 
 This project consists of two main components:
 
-1. **Session Logger Plugin** - Captures high-quality training data from OpenCode sessions
-2. **DSPy Training Pipeline** - Optimizes agent prompts using collected data
+1. **Session Logger Plugin** (TypeScript) - Captures high-quality training data from OpenCode sessions
+2. **DSPy Training Pipeline** (Python) - Optimizes agent prompts using collected data
+
+## Improvements Over Upstream
+
+### Code Quality
+- **Type Safety** — Replaced all `any` types in the TypeScript plugin with proper types (`Record<string, unknown>`, specific message types)
+- **No Type Assertions** — Removed Python `as any` cast in metrics module
+- **Clean Architecture** — Extracted cache bypass workaround into reusable helper functions (`_bypass_dspy_cache()`, `_restore_temperature()`)
+
+### Testing
+- **109 Unit Tests** — Comprehensive test coverage for all core modules:
+  - `test_session_parser.py` (24 tests) — Session parsing and filtering
+  - `test_example_builder.py` (13 tests) — Example formatting and batch building
+  - `test_metrics.py` (23 tests) — All metric functions and edge cases
+  - `test_optimizer.py` (14 tests) — Cache bypass, LM configuration, score extraction
+  - `test_exporter.py` (16 tests) — Export formats and template generation
+- **CI/CD Ready** — Tests run in isolated containers via Dagger
+
+### CI/CD Pipeline (Dagger)
+Reproducible containerized workflows:
+```bash
+# Run tests in container
+dagger call test --source .
+
+# Validate configuration
+dagger call validate --source .
+
+# Run full pipeline
+dagger call all --source .
+
+# Train with API key
+dagger call train --source . --experiment-name my-run
+```
+
+**Why Dagger?**
+- Same behavior locally and in CI
+- No "works on my machine" issues
+- Dependency caching via `uv` and cache volumes
+- Secret management for API keys
+
+### Configuration
+- **No Hardcoded Paths** — Removed `/home/alan/opencode` references; source path is now optional and configurable
+- **Portable** — Works on any machine without manual path adjustments
 
 ## Quick Start
 
@@ -18,7 +60,7 @@ The plugin at `.opencode/plugin/session-logger.ts` automatically captures your O
 **Setup:**
 ```bash
 # Plugin auto-loads on OpenCode restart
-# Look for: "📊 SessionLogger: Initialized (DSPy training data format)"
+# Look for: "SessionLogger: Initialized"
 ```
 
 **What Gets Captured:**
@@ -41,23 +83,23 @@ The plugin at `.opencode/plugin/session-logger.ts` automatically captures your O
 Once you've collected 50-100 successful examples:
 
 ```bash
-cd dspy-training
-make install           # Install dependencies
-cp .env.example .env   # Add your API keys
-make train             # Run optimization
+cd dspy-trainingv2
+pip install -r requirements.txt   # or: uv pip install -r requirements.txt
+cp config/openai-example.yaml config/local.yaml  # Add your API keys
+python cli.py train --experiment-name my-run
 ```
 
-See [`dspy-training/README.md`](dspy-training/README.md) for detailed training instructions.
+See [`dspy-trainingv2/README.md`](dspy-trainingv2/README.md) for detailed training instructions.
 
 ## Features
 
 ### Session Logger
 
-- **Smart Filtering** - Only saves successful sessions for training
-- **Complete Tool Traces** - Every action with args and results
-- **Rich Context** - Project files, LSP errors, git state
-- **Quality Metrics** - Correctness, efficiency, minimal edits
-- **Auto-Save** - Saves every 5 updates and on session idle
+- **Smart Filtering** — Only saves successful sessions for training
+- **Complete Tool Traces** — Every action with args and results
+- **Rich Context** — Project files, LSP errors, git state
+- **Quality Metrics** — Correctness, efficiency, minimal edits
+- **Auto-Save** — Saves every 5 updates and on session idle
 
 **Success Criteria:**
 Sessions are saved for training ONLY if:
@@ -68,10 +110,10 @@ Sessions are saved for training ONLY if:
 
 ### DSPy Training
 
-- **Flexible Data Loading** - Automatically loads session logs
-- **Multiple Optimizers** - MIPROv2, COPRO, BootstrapFewShot
-- **Custom Metrics** - Success rate, efficiency, correctness
-- **OpenCode Integration** - Exports optimized prompts ready to use
+- **Flexible Data Loading** — Automatically loads session logs
+- **Multiple Optimizers** — MIPROv2, COPRO, BootstrapFewShot
+- **Custom Metrics** — Success rate, efficiency, correctness
+- **OpenCode Integration** — Exports optimized prompts ready to use
 
 ## Project Structure
 
@@ -81,14 +123,15 @@ opencode-dspy/
 │   └── plugin/
 │       └── session-logger.ts          # Session capture plugin
 ├── .opencode-logs/                    # Generated training data
-├── dspy-training/                     # DSPy optimization pipeline
-│   ├── data/
-│   │   └── raw/                       # Place session logs here
-│   ├── src/                           # Training scripts
-│   ├── outputs/
-│   │   └── prompts/                   # Optimized prompts
-│   ├── config.yaml                    # Training configuration
-│   └── run_training.py                # Main training script
+├── dspy-trainingv2/                   # DSPy optimization pipeline
+│   ├── tests/                         # 109 unit tests
+│   ├── src/                           # Source modules
+│   ├── config/                        # YAML configurations
+│   ├── cli.py                         # CLI entry point
+│   └── requirements.txt               # Dependencies
+├── dagger/                            # Dagger CI/CD module
+│   └── main.go                        # Pipeline definitions
+├── dagger.json                        # Dagger module config
 ├── README.md                          # This file
 ├── DSPY_PLUGIN_DOCUMENTATION.md       # Detailed plugin documentation
 └── example-dspy-enhanced-output.json  # Example output format
@@ -198,10 +241,10 @@ class CodingAgent(dspy.Module):
         return self.generate_solution(task=task, context=context)
 
 # Load examples and optimize
-# ... (see dspy-training/ for complete pipeline)
+# ... (see dspy-trainingv2/ for complete pipeline)
 ```
 
-For complete DSPy integration examples, see the [`dspy-training/`](dspy-training/) directory.
+For complete DSPy integration examples, see the [`dspy-trainingv2/`](dspy-trainingv2/) directory.
 
 ## Monitoring
 
@@ -238,22 +281,23 @@ grep "SUCCESS=" .opencode-logs/plugin.log
 - Review plugin.log for failure reasons
 
 ### Training Issues?
-See [`dspy-training/README.md`](dspy-training/README.md) troubleshooting section.
+See [`dspy-trainingv2/README.md`](dspy-trainingv2/README.md) troubleshooting section.
 
 ## Documentation
 
-- **[DSPY_PLUGIN_DOCUMENTATION.md](DSPY_PLUGIN_DOCUMENTATION.md)** - Complete technical documentation for the session logger plugin
-- **[dspy-training/README.md](dspy-training/README.md)** - Complete DSPy training pipeline documentation
-- **[dspy-training/QUICKSTART.md](dspy-training/QUICKSTART.md)** - Quick start guide for training
-- **[example-dspy-enhanced-output.json](example-dspy-enhanced-output.json)** - Example session output format
+- **[DSPY_PLUGIN_DOCUMENTATION.md](DSPY_PLUGIN_DOCUMENTATION.md)** — Complete technical documentation for the session logger plugin
+- **[dspy-trainingv2/README.md](dspy-trainingv2/README.md)** — Complete DSPy training pipeline documentation
+- **[dspy-trainingv2/QUICKSTART.md](dspy-trainingv2/QUICKSTART.md)** — Quick start guide for training
+- **[dspy-trainingv2/TROUBLESHOOTING.md](dspy-trainingv2/TROUBLESHOOTING.md)** — Common issues and solutions
+- **[example-dspy-enhanced-output.json](example-dspy-enhanced-output.json)** — Example session output format
 
 ## Workflow
 
-1. **Collect** - Use OpenCode for 1-2 weeks (aim for 50-100 examples)
-2. **Filter** - Only successful examples are saved automatically
-3. **Train** - Load into DSPy and optimize prompts
-4. **Evaluate** - Measure improvements
-5. **Iterate** - Continuously collect more data
+1. **Collect** — Use OpenCode for 1-2 weeks (aim for 50-100 examples)
+2. **Filter** — Only successful examples are saved automatically
+3. **Train** — Load into DSPy and optimize prompts
+4. **Evaluate** — Measure improvements
+5. **Iterate** — Continuously collect more data
 
 ## Best Practices
 
@@ -277,15 +321,17 @@ See [`dspy-training/README.md`](dspy-training/README.md) troubleshooting section
 
 ### Session Logger Plugin
 - **Language:** TypeScript
-- **Lines:** 632
+- **Lines:** ~500
 - **Hooks:** `event`, `tool.execute.before`, `tool.execute.after`
 - **Output:** JSON files in `.opencode-logs/`
 
 ### DSPy Training Pipeline
 - **Language:** Python 3.8+
+- **Tests:** 109 unit tests (pytest)
 - **Optimizers:** MIPROv2, COPRO, BootstrapFewShot
 - **Teacher Models:** Anthropic Claude, OpenAI GPT-4
 - **Target Models:** Any LLM (Ollama, OpenAI, Anthropic, etc.)
+- **CI/CD:** Dagger (containerized, reproducible)
 
 ## Contributing
 
@@ -297,7 +343,7 @@ Contributions welcome! The project is structured to make it easy to:
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) file
+MIT License — see [LICENSE](LICENSE) file
 
 ## Community
 
@@ -309,12 +355,13 @@ Built for the OpenCode and DSPy communities:
 
 ✅ **Production Ready**
 - Plugin captures all critical information for DSPy
-- Training pipeline tested and working
+- Training pipeline tested and working (109 tests)
 - Documentation complete
+- CI/CD pipeline with Dagger
 - Ready for community use
 
 ## Version
 
 - **Session Logger:** v1.2.0
-- **DSPy Training:** v1.0.0
-- **Last Updated:** 2025-11-28
+- **DSPy Training:** v2.0.0
+- **Last Updated:** 2025-05-10
