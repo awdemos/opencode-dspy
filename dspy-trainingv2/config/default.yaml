@@ -160,7 +160,7 @@ output:
 # OpenCode integration
 opencode:
   # Path to OpenCode source repository (for template extraction)
-  source_path: "/home/alan/opencode"
+  source_path: null
 
   # Whether to use OpenCode templates as base
   use_templates: true

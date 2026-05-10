@@ -14,15 +14,9 @@ logger = logging.getLogger(__name__)
 class PromptTemplateLoader:
     """Load prompt templates from OpenCode source."""
 
-    def __init__(self, opencode_path: str = "/home/alan/opencode"):
-        """
-        Initialize the template loader.
-
-        Args:
-            opencode_path: Path to OpenCode source repository
-        """
-        self.opencode_path = Path(opencode_path)
-        self.prompt_dir = self.opencode_path / "packages/opencode/src/session/prompt"
+    def __init__(self, opencode_path: str | None = None):
+        self.opencode_path = Path(opencode_path) if opencode_path else None
+        self.prompt_dir = self.opencode_path / "packages/opencode/src/session/prompt" if self.opencode_path else None
         self._templates = {}
 
     def load_template(self, template_name: str) -> str:
@@ -39,7 +33,9 @@ class PromptTemplateLoader:
         if template_name in self._templates:
             return self._templates[template_name]
 
-        # Load from file
+        if self.prompt_dir is None:
+            return ""
+
         template_file = self.prompt_dir / f"{template_name}.txt"
 
         if not template_file.exists():

@@ -31,6 +31,41 @@ from ..dspy_modules.code_agent import OpenCodeAgent
 logger = logging.getLogger(__name__)
 
 
+def _bypass_dspy_cache(lm, logger_msg: str = "Bypassing DSPy cache") -> float:
+    """
+    Temporarily modify LM temperature to bypass DSPy's aggressive caching.
+    
+    DSPy caches all predictions at temperature=0 to save API costs. This causes
+    two problems:
+    1. Teacher model returns cached predictions from previous runs
+    2. Student evaluation reuses predictions from teacher optimization
+    
+    Setting temperature to 0.001 has negligible impact on output quality
+    but forces DSPy to treat it as a different cache key.
+    
+    Args:
+        lm: DSPy LM instance
+        logger_msg: Message to log when bypassing
+        
+    Returns:
+        Original temperature value for restoration
+    """
+    original_temp = lm.kwargs.get('temperature', 0.0)
+    if original_temp == 0.0:
+        logger.info(f"{logger_msg}: setting temperature=0.001")
+        lm.kwargs['temperature'] = 0.001
+    else:
+        logger.debug(f"{logger_msg}: already non-zero ({original_temp})")
+    return original_temp
+
+
+def _restore_temperature(lm, original_temp: float):
+    """Restore original temperature after cache bypass."""
+    if original_temp == 0.0:
+        lm.kwargs['temperature'] = original_temp
+        logger.debug(f"Restored temperature to {original_temp}")
+
+
 def extract_score_value(score_obj) -> float:
     """
     Extract numeric score from DSPy evaluation result.
@@ -278,13 +313,7 @@ class PromptOptimizer:
         # DEBUG: Log which teacher LM is being used
         logger.debug(f"Teacher LM configured: {self.teacher}")
 
-        # NOTE: DSPy caches teacher predictions at temperature=0 for reproducibility and cost savings.
-        # This means running the same optimization twice will reuse cached demonstrations.
-        # To force fresh predictions, either:
-        #   1. Clear the cache: rm -rf ~/.dspy_cache/*
-        #   2. Use --no-cache flag (adds small temperature variation)
-        #   3. Change the training data or model
-        original_teacher_temp = self.teacher.kwargs.get('temperature', 0.0)
+        original_teacher_temp = _bypass_dspy_cache(self.teacher, "Bypassing teacher cache for BootstrapFewShot")
 
         try:
             with dspy.context(lm=self.teacher):
@@ -312,10 +341,7 @@ class PromptOptimizer:
                 teacher_calls_made = teacher_history_after - teacher_history_before
                 logger.info(f"Bootstrap complete: teacher made {teacher_calls_made} LLM calls")
         finally:
-            # Always restore original temperature
-            if original_teacher_temp == 0.0:
-                self.teacher.kwargs['temperature'] = original_teacher_temp
-                logger.debug(f"Restored teacher temperature to {original_teacher_temp}")
+            _restore_temperature(self.teacher, original_teacher_temp)
 
         # Evaluate on student model
         logger.info("Evaluating optimized agent on student model...")
@@ -366,13 +392,7 @@ class PromptOptimizer:
             )
             minibatch_size = len(valset)
 
-        # CRITICAL: Bypass DSPy cache for teacher model
-        original_teacher_temp = self.teacher.kwargs.get('temperature', 0.0)
-        if original_teacher_temp == 0.0:
-            logger.info("Temporarily setting teacher temperature=0.001 to bypass DSPy cache...")
-            self.teacher.kwargs['temperature'] = 0.001
-        else:
-            logger.debug(f"Teacher already has non-zero temperature ({original_teacher_temp}), cache bypassed")
+        original_teacher_temp = _bypass_dspy_cache(self.teacher, "Bypassing teacher cache for MIPROv2")
 
         try:
             with dspy.context(lm=self.teacher):
@@ -393,10 +413,7 @@ class PromptOptimizer:
                     valset=valset
                 )
         finally:
-            # Always restore original temperature
-            if original_teacher_temp == 0.0:
-                self.teacher.kwargs['temperature'] = original_teacher_temp
-                logger.debug(f"Restored teacher temperature to {original_teacher_temp}")
+            _restore_temperature(self.teacher, original_teacher_temp)
 
         # Evaluate on student model
         logger.info("Evaluating optimized agent on student model...")
@@ -429,13 +446,7 @@ class PromptOptimizer:
         """
         logger.info("Running COPRO optimization...")
 
-        # CRITICAL: Bypass DSPy cache for teacher model
-        original_teacher_temp = self.teacher.kwargs.get('temperature', 0.0)
-        if original_teacher_temp == 0.0:
-            logger.info("Temporarily setting teacher temperature=0.001 to bypass DSPy cache...")
-            self.teacher.kwargs['temperature'] = 0.001
-        else:
-            logger.debug(f"Teacher already has non-zero temperature ({original_teacher_temp}), cache bypassed")
+        original_teacher_temp = _bypass_dspy_cache(self.teacher, "Bypassing teacher cache for COPRO")
 
         try:
             with dspy.context(lm=self.teacher):
@@ -454,10 +465,7 @@ class PromptOptimizer:
                     eval_kwargs={}  # Empty dict - COPRO sets devset and metric internally
                 )
         finally:
-            # Always restore original temperature
-            if original_teacher_temp == 0.0:
-                self.teacher.kwargs['temperature'] = original_teacher_temp
-                logger.debug(f"Restored teacher temperature to {original_teacher_temp}")
+            _restore_temperature(self.teacher, original_teacher_temp)
 
         # Evaluate on student model
         logger.info("Evaluating optimized agent on student model...")
@@ -490,21 +498,9 @@ class PromptOptimizer:
         logger.debug(f"Student LM configured: {self.student}")
         logger.debug(f"Current DSPy LM before context: {dspy.settings.lm if hasattr(dspy.settings, 'lm') else 'None'}")
 
-        # CRITICAL: DSPy caches LM calls at temperature=0 to avoid redundant API requests.
-        # This causes student evaluation to return cached predictions from previous models!
-        #
-        # SOLUTION: Temporarily use temperature > 0 to bypass caching.
-        # A tiny temperature (0.001) has minimal impact on output while ensuring fresh predictions.
-        # This avoids breaking DSPy's cache database structure (which clearing the cache does).
-
-        original_student_temp = self.student.kwargs.get('temperature', 0.0)
-        if original_student_temp == 0.0:
-            logger.info("Temporarily setting student temperature=0.001 to bypass DSPy cache and force fresh predictions...")
-            self.student.kwargs['temperature'] = 0.001
-        else:
-            logger.debug(f"Student already has non-zero temperature ({original_student_temp}), cache bypassed")
-
         from copy import deepcopy
+
+        original_student_temp = _bypass_dspy_cache(self.student, "Bypassing student cache for evaluation")
 
         with dspy.context(lm=self.student):
             # CRITICAL: Create module INSIDE the context so it uses the student LM
@@ -620,10 +616,7 @@ class PromptOptimizer:
             # DEBUG: Report metric calls
             logger.info(f"Evaluation complete: score={numeric_score:.3f}, metric called {call_count['count']} times, made {num_calls} LLM calls")
 
-        # Restore original temperature
-        if original_student_temp == 0.0:
-            self.student.kwargs['temperature'] = original_student_temp
-            logger.debug(f"Restored student temperature to {original_student_temp}")
+        _restore_temperature(self.student, original_student_temp)
 
         return {
             "score": numeric_score,

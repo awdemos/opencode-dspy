@@ -396,12 +396,16 @@ def validate(
         console.print(f"[red]✗ Session logs directory not found: {session_logs_dir}[/red]")
 
     # Check OpenCode source path
-    opencode_path = Path(cfg['opencode']['source_path'])
-    if opencode_path.exists():
-        console.print(f"[green]✓ OpenCode source: {opencode_path}[/green]")
+    source_path = cfg['opencode']['source_path']
+    if source_path:
+        opencode_path = Path(source_path)
+        if opencode_path.exists():
+            console.print(f"[green]✓ OpenCode source: {opencode_path}[/green]")
+        else:
+            console.print(f"[yellow]⚠ OpenCode source not found: {opencode_path}[/yellow]")
+            console.print(f"  Will use default templates")
     else:
-        console.print(f"[yellow]⚠ OpenCode source not found: {opencode_path}[/yellow]")
-        console.print(f"  Will use default templates")
+        console.print(f"[dim]ℹ OpenCode source not configured, using default templates[/dim]")
 
     console.print()
 

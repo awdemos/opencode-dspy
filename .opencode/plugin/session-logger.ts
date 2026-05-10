@@ -18,8 +18,8 @@ interface ToolCall {
   step: number;
   tool: string;
   callID: string;  // Unique identifier for matching before/after
-  args: any;
-  result?: any;
+  args: Record<string, unknown>;
+  result?: string;
   success?: boolean;
   timestamp: string;
   lspDiagnosticsAfter?: LspDiagnostics;
@@ -163,15 +163,15 @@ export const SessionLogger: Plugin = async ({ directory, client, $ }) => {
       // Get file count and list
       const files = await readdir(directory, { recursive: true });
       context.fileCount = files.length;
-      context.relevantFiles = files.filter((f: any) => 
-        typeof f === 'string' && 
+      context.relevantFiles = (files as string[]).filter((f) =>
+        typeof f === 'string' &&
         (f.endsWith('.ts') || f.endsWith('.js') || f.endsWith('.tsx') || f.endsWith('.jsx'))
       ).slice(0, 20); // Limit to 20 most relevant files
-      
+
       // Try to detect project type
-      if (files.some((f: any) => f === 'package.json')) {
+      if ((files as string[]).some((f) => f === 'package.json')) {
         context.projectType = 'javascript';
-      } else if (files.some((f: any) => f === 'tsconfig.json')) {
+      } else if ((files as string[]).some((f) => f === 'tsconfig.json')) {
         context.projectType = 'typescript';
       }
       
@@ -243,8 +243,8 @@ export const SessionLogger: Plugin = async ({ directory, client, $ }) => {
   
   // Evaluate session outcome for a specific turn
   const evaluateOutcome = async (
-    session: SessionData, 
-    turnMessages: Array<{role: string, content: string, info?: any}>,
+    session: SessionData,
+    turnMessages: Array<{role: string, content: string, info?: AssistantMessage | UserMessage}>,
     turnToolCalls: ToolCall[]
   ): Promise<OutcomeMetrics> => {
     const assistantMessages = turnMessages.filter(m => m.role === 'assistant');
@@ -361,8 +361,8 @@ export const SessionLogger: Plugin = async ({ directory, client, $ }) => {
   
   // Check if turn should be saved for training
   const shouldSaveForTraining = (
-    turnMessages: Array<any>, 
-    turnToolCalls: ToolCall[], 
+    turnMessages: Array<{role: string; content: string}>,
+    turnToolCalls: ToolCall[],
     outcome: OutcomeMetrics,
     turnIndex: number
   ): boolean => {
@@ -556,7 +556,7 @@ export const SessionLogger: Plugin = async ({ directory, client, $ }) => {
   
   // Return hooks
   return {
-    event: async ({ event }: any) => {
+    event: async ({ event }: { event: { type: string; properties?: { info?: SessionData & { id?: string; sessionID?: string; role?: string } } } }) => {
       try {
         const eventType = event.type;
         
@@ -607,8 +607,8 @@ export const SessionLogger: Plugin = async ({ directory, client, $ }) => {
             
             if (messageData.data) {
               const textContent = messageData.data.parts
-                ?.filter((part: any) => part.type === "text")
-                ?.map((part: any) => part.text)
+                ?.filter((part: { type?: string; text?: string }) => part.type === "text")
+                ?.map((part: { type?: string; text?: string }) => part.text)
                 ?.join("\n") || "";
               
               // Check if message already exists

@@ -118,7 +118,7 @@ def test_context_builder():
     ex = session_examples[0]
 
     # Build context
-    builder = ContextBuilder(opencode_path="/home/alan/opencode")
+    builder = ContextBuilder(opencode_path=None)
 
     try:
         full_prompt = builder.build_prompt_for_example(ex)
