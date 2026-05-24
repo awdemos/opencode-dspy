@@ -463,7 +463,7 @@ If you use this work, please cite:
 
 ```
 DSPy-Based Prompt Optimization for OpenCode
-https://github.com/your-repo/opencode-dspy
+https://github.com/opencode-ai/opencode-dspy
 ```
 
 Also cite the original DSPy paper:

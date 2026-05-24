@@ -343,7 +343,7 @@ Contributions welcome! The project is structured to make it easy to:
 
 ## License
 
-MIT License — see [LICENSE](LICENSE) file
+CRAPL License — see [LICENSE](LICENSE) file
 
 ## Community
 
@@ -364,4 +364,4 @@ Built for the OpenCode and DSPy communities:
 
 - **Session Logger:** v1.2.0
 - **DSPy Training:** v2.0.0
-- **Last Updated:** 2025-05-10
+- **Last Updated:** 2026-05-24
