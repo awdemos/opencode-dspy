@@ -92,3 +92,32 @@ opencode-dspy/
 - `dspy-trainingv2/README.md` - Training pipeline documentation
 - `dspy-trainingv2/TROUBLESHOOTING.md` - Common issues and solutions
 - `dspy-trainingv2/QUICKSTART.md` - Quick start guide
+
+## Deployment
+
+This project has a Dagger module (`dagger.json` in `./`).
+From the repository root, run:
+
+```bash
+# list available functions
+dagger call --help -m ./
+```
+
+Common deployment functions:
+
+```bash
+# -
+dagger call -m ./ all
+# -
+dagger call -m ./ test
+# -
+dagger call -m ./ train
+# -
+dagger call -m ./ validate
+# load module runtime eagerly
+dagger call -m ./ --eager-runtime
+# --interactive-command string   Change the default command for
+dagger call -m ./ failure
+```
+
+You may need to export required tokens before calling deploy functions (e.g., `GH_TOKEN`, `CLOUDFLARE_API_TOKEN`, `REGISTRY_TOKEN`).
